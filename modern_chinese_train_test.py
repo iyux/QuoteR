@@ -173,6 +173,7 @@ class Context_Encoder(nn.Module):
         super().__init__()
         self.bert_model = BertModel.from_pretrained(PRETRAINED_MODEL_NAME)
         self.dropout = nn.Dropout(0.5)
+        self.fc = nn.Linear(100, 1)
 
     def forward(self, context_input_ids, context_token_type_ids,
                 context_attention_masks, mask_ids):
@@ -180,14 +181,16 @@ class Context_Encoder(nn.Module):
                                   token_type_ids=context_token_type_ids,
                                   attention_mask=context_attention_masks)
         last_hidden_state = outputs[0]  # [batch_size, sequence_length, hidden_size]
-        all_context = []
-        for i in range(len(last_hidden_state)):
-            hidden_state = last_hidden_state[i]  # [sequence_length, hidden_size]
-            mask = hidden_state[mask_ids[i]]
-            mask = self.dropout(mask)
-            context = mask.unsqueeze(dim=0)  # context: [1, hidden_size]
-            all_context.append(context)
-        all_context = torch.cat(all_context, dim=0)  # all_context: [batch, hidden_size]
+        # all_context = []
+        # for i in range(len(last_hidden_state)):
+        #     hidden_state = last_hidden_state[i]  # [sequence_length, hidden_size]
+        #     mask = hidden_state[mask_ids[i]]
+        #     mask = self.dropout(mask)
+        #     context = mask.unsqueeze(dim=0)  # context: [1, hidden_size]
+        #     all_context.append(context)
+        # all_context = torch.cat(all_context, dim=0)  # all_context: [batch, hidden_size]
+
+        all_context = (self.fc(last_hidden_state.permute(0, 2, 1))).squeeze(-1)
         return all_context
 
 
@@ -196,6 +199,8 @@ class Quote_Encoder(nn.Module):
         super().__init__()
         self.bert_model = BertSememeModel.from_pretrained(
             PRETRAINED_MODEL_NAME)
+        self.fc = nn.Linear(80, 1)
+
 
     def forward(self, quotes):
         quote_tensor = []
@@ -205,7 +210,8 @@ class Quote_Encoder(nn.Module):
             quote_input_ids = quote_input_ids.to(device)
             outputs = self.bert_model(input_ids=quote_input_ids)
             last_hidden_state = outputs[0]  # [num_quotes, sequence_length, hidden_size]
-            output = torch.mean(last_hidden_state, dim=1)  # [num_quotes, hidden_size]
+            # output = torch.mean(last_hidden_state, dim=1)  # [num_quotes, hidden_size]
+            output = (self.fc(last_hidden_state.permute(0, 2, 1))).squeeze(-1)
             quote_tensor.append(output)
             labels.append(label)
         quote_tensor = torch.stack(quote_tensor, dim=0)  # [batch, num_quotes, hidden_size]
